@@ -1,0 +1,99 @@
+
+// Eventually scale upto L = 500, rho = 5e2, m=0.25, s=0.05 (probably too big for SLiMGUI, so run it through command line on a cluster.)
+// N ~ 10^7 >> L^2/m ~ 10^6 >> L/sqrt(ms) ~ 10^4/2
+// Simulation re-run from the beginning of the sweep if the selected mutation is lost, and the simulation finishes when it fixes or it reaches gen 10k (at which point the frequency is hopefully very close to 1). Tree-sequence is saved.
+// Using pyslim, one can recapitate the tree sequence and find the MRCA before the sweep, which isn't simulated here. You can also sprinkle neutral mutations on. 
+// T he parameters (L, m, rho, etc.) are editable from terminal.
+// AFS can be made from branch mode, so we don't actually need to use neutral mutations. (specifically, load the tree sequence output as ts, and ts.allele_frequency_spectrum(mode="branch"))
+
+initialize() {
+	initializeTreeSeq();
+
+	params = Dictionary(
+		"seed", getSeed(),
+		"L1", 5, // height
+		"L2", 5, // width
+		"m", 0.25, // migration rate between neighboring demes
+		"s", 0.05, // strength of selection
+		"rho", 500, // number of individuals per deme (total population size = rho * L1 * L2)
+		"r", 1e-7, // recombination rate (note that this script assumes diploid population)
+		"GENOME_LENGTH", 1e6,
+		"OUTDIR", "./",
+		"OUTNAME", "out"
+	); 
+	for (k in params.allKeys) {
+		// if the parameter is not modified with -d, get default value from dictionary.
+		if (!exists(k)) {
+			defineConstant(k, params.getValue(k));		
+		}
+		// if you used -d, replace value in params dictionary with the input value
+		else {
+			params.setValue(k, executeLambda(paste(c(k, ";"), sep='')));
+		}
+	}	
+	defineConstant("PARAMS", params);
+	initializeMutationRate(0);
+	initializeMutationType("m1", 1.0, "f", s);  // introduced mutation
+	m1.convertToSubstitution = F;
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, 0, GENOME_LENGTH-1);
+	initializeRecombinationRate(r);
+	if (!fileExists(OUTDIR)) {
+		createDirectory(OUTDIR);
+	}
+	defineConstant("STATEOUT", OUTDIR + "/sim_" + params.getValue("seed") + ".state");
+	defineConstant("TREEOUT", OUTDIR + "/fixed_sweep.trees");
+
+}
+1 early() {
+	metapopSize = L1 * L2;
+	for (i in 1:metapopSize)
+		sim.addSubpop(i, rho);
+	
+	subpops = sim.subpopulations;
+	for (x in 1:L1)
+		for (y in 1:L2)
+		{
+			destID = (x - 1) + (y - 1) * L1 + 1;
+			destSubpop = subpops[destID - 1];
+			if (x > 1)   // left to right
+				destSubpop.setMigrationRates(destID - 1, m);
+			if (x < L1)   // right to left
+				destSubpop.setMigrationRates(destID + 1, m);
+			if (y > 1)   // top to bottom
+				destSubpop.setMigrationRates(destID - L1, m);
+			if (y < L2)   // bottom to top
+				destSubpop.setMigrationRates(destID + L1, m);
+		}
+		
+}
+
+1 late() {
+	// save population state for restarting sim if mutation gets lost
+	sim.treeSeqOutput(STATEOUT);
+
+	target = sample(p1.haplosomes, 1);
+	target.addNewDrawnMutation(m1, asInteger(GENOME_LENGTH/2));
+}
+1:10000 late() {
+	if (sim.countOfMutationsOfType(m1) == 0) {
+		catn(community.tick);
+		catn("LOST -- RESTARTING\n");		
+		sim.readFromPopulationFile(STATEOUT);
+		setSeed(rdunif(1, 0, asInteger(2^62) - 1));
+		target = sample(p1.haplosomes, 1);
+		target.addNewDrawnMutation(m1, asInteger(GENOME_LENGTH/2));
+	}
+	else if (p1.species.mutationFrequencies(NULL) == 1.0) {
+		catn(community.tick);
+		catn("FIXED\n");
+		sim.treeSeqOutput(TREEOUT, metadata=PARAMS);
+		sim.simulationFinished();
+		
+	}
+}
+10000 late() {
+	sim.treeSeqOutput(TREEOUT, metadata=params);
+	sim.simulationFinished();
+
+}
