@@ -32,11 +32,15 @@ initialize() {
 		}
 	}	
 	defineConstant("PARAMS", params);
-	initializeMutationRate(0);
 	initializeMutationType("m1", 1.0, "f", s);  // introduced mutation
 	m1.convertToSubstitution = F;
 	initializeGenomicElementType("g1", m1, 1.0);
-	initializeGenomicElement(g1, 0, GENOME_LENGTH-1);
+	
+	// Haploid population with recombination
+	initializeChromosome(1, GENOME_LENGTH, type="H");
+	initializeGenomicElement(g1);
+
+	initializeMutationRate(0);
 	initializeRecombinationRate(r);
 	if (!fileExists(OUTDIR)) {
 		createDirectory(OUTDIR);
