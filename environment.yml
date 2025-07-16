@@ -1,0 +1,19 @@
+name: 2d-sweep
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python
+  - jupyter
+  - jupyterlab
+  - ipykernel
+  - numpy
+  - scipy
+  - matplotlib
+  - slim
+  - msprime
+  - tskit
+  - pip
+  - pip:
+    - pyslim
