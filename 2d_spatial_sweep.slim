@@ -1,4 +1,3 @@
-
 // Eventually scale upto L = 500, rho = 5e2, m=0.25, s=0.05 (probably too big for SLiMGUI, so run it through command line on a cluster.)
 // N ~ 10^7 >> L^2/m ~ 10^6 >> L/sqrt(ms) ~ 10^4/2
 // Simulation re-run from the beginning of the sweep if the selected mutation is lost, and the simulation finishes when it fixes or it reaches gen 10k (at which point the frequency is hopefully very close to 1). Tree-sequence is saved.
@@ -16,10 +15,11 @@ initialize() {
 		"m", 0.25, // migration rate between neighboring demes
 		"s", 0.05, // strength of selection
 		"rho", 500, // number of individuals per deme (total population size = rho * L1 * L2)
-		"r", 1e-7, // recombination rate (note that this script assumes diploid population)
+		"r", 0, // recombination rate (note that this script assumes diploid population)
 		"GENOME_LENGTH", 1e6,
 		"OUTDIR", "./",
-		"OUTNAME", "out"
+		"OUTNAME", "out",
+		"ploidy", "h" // use "h" for haploid or "d" for diploid
 	); 
 	for (k in params.allKeys) {
 		// if the parameter is not modified with -d, get default value from dictionary.
@@ -36,9 +36,16 @@ initialize() {
 	m1.convertToSubstitution = F;
 	initializeGenomicElementType("g1", m1, 1.0);
 	
-	// Haploid population with recombination
-	initializeChromosome(1, GENOME_LENGTH, type="H");
-	initializeGenomicElement(g1);
+	if ( ploidy == "h" ) {
+	// haploid
+		initializeChromosome(1, GENOME_LENGTH, type="H");
+		initializeGenomicElement(g1);
+	}
+	else {
+	// diploid
+		initializeGenomicElement(g1, 0, GENOME_LENGTH-1);
+	}
+	
 
 	initializeMutationRate(0);
 	initializeRecombinationRate(r);
