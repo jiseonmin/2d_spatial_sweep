@@ -1,3 +1,5 @@
 # Add files to ignore
 *.state
 *.trees
+*.out
+*.err
