@@ -6,7 +6,7 @@
 // AFS can be made from branch mode, so we don't actually need to use neutral mutations. (specifically, load the tree sequence output as ts, and ts.allele_frequency_spectrum(mode="branch"))
 
 initialize() {
-	initializeTreeSeq();
+	initializeTreeSeq(simplificationInterval=500);
 
 	params = Dictionary(
 		"seed", getSeed(),
