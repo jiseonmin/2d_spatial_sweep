@@ -3,3 +3,4 @@
 *.trees
 *.out
 *.err
+.ipynb_checkpoints/*
