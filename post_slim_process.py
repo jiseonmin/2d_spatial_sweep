@@ -1,6 +1,8 @@
 import tskit
 import pyslim
 import msprime
+import matplotlib.pyplot as plt
+import numpy as np
 
 ts = tskit.load("fixed_sweep.trees")
 
@@ -15,7 +17,20 @@ r = metadata['r'][0]
 m = metadata['m'][0]
 
 demography = msprime.Demography.from_tree_sequence(ts)
-print(demography)
+for i in range(L1):
+    for j in range(L2):
+        home = i + j * L1 + 1
+        demography["p"+str(home)].initial_size=rho
+        if i>0:
+            demography.set_migration_rate(home, home-1, m)
+        if i<L1-1:
+            demography.set_migration_rate(home, home+1, m)
+        if j>0:
+            demography.set_migration_rate(home, home-L1, m)
+        if j<L2-1:
+            demography.set_migration_rate(home, home+L1, m)
+
+
 
 rts = pyslim.recapitate(
         ts, demography=demography,
@@ -32,23 +47,23 @@ rts = msprime.sim_mutations(
 # run forward-in-time sim after sweep
 new_time = 1000
 demog_model = msprime.Demography()
-for i in range(L1):
-    for j in range(L2):
-        demog_model.add_population(initial_size=rho, name=i+j*L1)
+num_demes = L1 * L2
+for i in range(num_demes):
+    demog_model.add_population(initial_size=rho, name="p"+str(i+1))
 
 samples = {}
 for i in range(L1):
     for j in range(L2):
-        home = i+j*L1
+        home = i+j*L1 + 1
         if i>0:
-            demog_model.set_migration_rate(str(home), str(home-1), m)
+            demog_model.set_migration_rate("p"+str(home), "p"+str(home-1), m)
         if i<L1-1:
-            demog_model.set_migration_rate(str(home), str(home+1), m)
+            demog_model.set_migration_rate("p"+str(home), "p"+str(home+1), m)
         if j>0:
-            demog_model.set_migration_rate(str(home), str(home+L1), m)
+            demog_model.set_migration_rate("p"+str(home), "p"+str(home-L1), m)
         if j<L2-1:
-            demog_model.set_migration_rate(str(home), str(home-L1), m)
-        samples[home] = rho
+            demog_model.set_migration_rate("p"+str(home), "p"+str(home+L1), m)
+        samples["p"+str(home)] = rho
 
 new_ts = msprime.sim_ancestry(
               samples=samples,
@@ -65,7 +80,6 @@ new_tables = new_ts.tables
 
 new_nodes = np.where(new_tables.nodes.time == new_time)[0]
 print(f"There are {len(new_nodes)} nodes from the start of the new simulation.")
-# There are 4425 nodes from the start of the new simulation.
 
 slim_nodes = rts.samples(time=0)
 
