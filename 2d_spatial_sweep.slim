@@ -68,13 +68,13 @@ initialize() {
 			destID = (x - 1) + (y - 1) * L1 + 1;
 			destSubpop = subpops[destID - 1];
 			if (x > 1)   // left to right
-				destSubpop.setMigrationRates(destID - 1, m);
+				destSubpop.setMigrationRates(destID - 1, m/4);
 			if (x < L1)   // right to left
-				destSubpop.setMigrationRates(destID + 1, m);
+				destSubpop.setMigrationRates(destID + 1, m/4);
 			if (y > 1)   // top to bottom
-				destSubpop.setMigrationRates(destID - L1, m);
+				destSubpop.setMigrationRates(destID - L1, m/4);
 			if (y < L2)   // bottom to top
-				destSubpop.setMigrationRates(destID + L1, m);
+				destSubpop.setMigrationRates(destID + L1, m/4);
 		}
 		
 }
