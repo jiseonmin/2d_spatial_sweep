@@ -22,6 +22,6 @@ T_post_sweep=1000
 echo "SLiM sim started at: $(date)"
 slim -d L1=$L1 -d L2=$L2 -d rho=$rho -d m=$m -d s=$s 2d_spatial_sweep.slim
 echo "slim sim finished at: $(date)"
-echo "running post-sweep msprime sims for $(T_post_sweep) generations"
+echo "running post-sweep msprime sims for $T_post_sweep generations"
 python -u post_slim_process.py $T_post_sweep
 echo "finished pyslim + msprime post-processing at: $(date)"
