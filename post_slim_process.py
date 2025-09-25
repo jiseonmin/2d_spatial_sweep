@@ -37,7 +37,7 @@ print(f"start recapitating at {datetime.now()}")
 
 rts = pyslim.recapitate(
         ts, demography=demography,
-        recombination_rate=1e-8,
+        recombination_rate=r,
         random_seed=4
 )
 print(f"recapitation completed. Adding neutral mutations at {datetime.now()}")
@@ -53,27 +53,24 @@ print(f"neutral mutations added. Start running forward-in-time sims post SLiM at
 
 # run forward-in-time sim after sweep for the number of generation provided in command line.
 new_time = int(sys.argv[1])
-num_demes = L1 * L2
-samples = {}
-for i in range(num_demes):
-    samples["p"+str(i+1)] = rho
 
-
+well_mixed_model = msprime.Demography()
+well_mixed_model.add_population(initial_size=L1*L2*rho, name='p_all')
 new_ts = msprime.sim_ancestry(
-              samples=samples,
-              demography=demography,
+              samples={'p_all' : L1*L2*rho},
+              demography=well_mixed_model,
               end_time=new_time,
               sequence_length=rts.sequence_length,
               recombination_rate=r,
               random_seed=9)
-new_ts.dump("post_slim_ts.trees")
-print(f"msprime sim ancestry done. now adding mutations to the new ts at {datetime.now()}")
 
 new_ts = msprime.sim_mutations(
                  new_ts, rate=1e-8, random_seed=10, keep=True,
                  model=msprime.SLiMMutationModel(type=0)
         )
 
+new_ts.dump("post_slim_ts.trees")
+print(f"msprime sim ancestry done. now adding mutations to the new ts at {datetime.now()}")
 new_tables = new_ts.tables
 
 new_nodes = np.where(new_tables.nodes.time == new_time)[0]
