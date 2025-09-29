@@ -104,7 +104,8 @@ initialize() {
 	}
 }
 10000 late() {
-	sim.treeSeqOutput(TREEOUT, metadata=params);
+	catn("Sweep is still on-going after 10k gen.\n");
+	sim.treeSeqOutput(TREEOUT, metadata=PARAMS);
 	sim.simulationFinished();
 
 }
