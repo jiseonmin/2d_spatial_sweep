@@ -6,7 +6,10 @@ import numpy as np
 from datetime import datetime
 import sys
 
-ts = tskit.load("fixed_sweep.trees")
+ts_name = str(sys.argv[1])
+post_sweep_time = int(sys.argv[2])
+
+ts = tskit.load(f"{ts_name}.trees")
 print(f"ts loaded at {datetime.now()}")
 # SLiM apparently creates an older version of ts than what pyslim uses. So I will update it.
 ts = pyslim.update(ts)
@@ -48,18 +51,17 @@ rts = msprime.sim_mutations(
             rts, rate=1e-8, random_seed=7, keep=True,
             model=msprime.SLiMMutationModel(type=0, next_id=next_id)
 )
-rts.dump("recapitated_ts.trees")
+rts.dump(f"recapitated_{ts_name}.trees")
 print(f"neutral mutations added. Start running forward-in-time sims post SLiM at {datetime.now()}")
 
 # run forward-in-time sim after sweep for the number of generation provided in command line.
-new_time = int(sys.argv[1])
 
 well_mixed_model = msprime.Demography()
 well_mixed_model.add_population(initial_size=L1*L2*rho, name='p_all')
 new_ts = msprime.sim_ancestry(
               samples={'p_all' : L1*L2*rho},
               demography=well_mixed_model,
-              end_time=new_time,
+              end_time=post_sweep_time,
               sequence_length=rts.sequence_length,
               recombination_rate=r,
               random_seed=9)
@@ -69,7 +71,7 @@ new_ts = msprime.sim_mutations(
                  model=msprime.SLiMMutationModel(type=0)
         )
 
-new_ts.dump("post_slim_ts.trees")
+new_ts.dump(f"post_slim_{ts_name}.trees")
 print(f"msprime sim ancestry done. now adding mutations to the new ts at {datetime.now()}")
 new_tables = new_ts.tables
 
@@ -100,11 +102,11 @@ tables.union(new_tables, node_map,
 
 # get back the tree sequence
 full_ts = tables.tree_sequence()
-full_ts.dump("full_ts.trees")
+full_ts.dump(f"full_{ts_name}.trees")
 
 fig, ax = plt.subplots(1, 1, figsize=(10, 10))
 afs = ts.allele_frequency_spectrum(polarised=True, mode='branch')
 ax.loglog(np.arange(1, ts.num_samples+1) / ts.num_samples, afs[1:])
 ax.set_xlabel("f")
 ax.set_ylabel("n(f)")
-fig.savefig("afs.png")
+fig.savefig(f"afs_{ts_name}.png")
