@@ -23,18 +23,90 @@ r = metadata['r'][0]
 m = metadata['m'][0]
 
 demography = msprime.Demography.from_tree_sequence(ts)
-for i in range(L1):
-    for j in range(L2):
-        home = i + j * L1 + 1
-        demography["p"+str(home)].initial_size=rho
-        if i>0:
-            demography.set_migration_rate(home, home-1, m/4)
-        if i<L1-1:
-            demography.set_migration_rate(home, home+1, m/4)
-        if j>0:
-            demography.set_migration_rate(home, home-L1, m/4)
-        if j<L2-1:
-            demography.set_migration_rate(home, home+L1, m/4)
+root_times = set([ts.node(n).time for t in ts.trees() for n in t.roots])
+recap_time = root_times.pop()
+
+total_pops = L1 * L2
+
+# Add the final ancestral population
+demography.add_population(
+    name="ancestral",
+    description="ancestral population simulated by msprime",
+    initial_size=total_pops * rho
+)
+
+# Helper function to generate unique time offsets
+def get_next_time(current_time, iteration):
+    return np.nextafter(current_time, (iteration + 2) * current_time)
+
+# Keep track of all populations at each level
+current_level_pops = [f"p{i+1}" for i in range(total_pops)]
+level = 0
+time_offset = recap_time
+
+# Merge populations hierarchically until we have one final ancestral population
+while len(current_level_pops) > 1:
+    next_level_pops = []
+    num_groups = (len(current_level_pops) + 98) // 99  # Ceiling division
+
+    for i in range(num_groups):
+        # Get up to 99 populations for this group
+        start_idx = i * 99
+        end_idx = min((i + 1) * 99, len(current_level_pops))
+        derived = current_level_pops[start_idx:end_idx]
+
+        # Determine ancestral population name
+        if num_groups == 1:
+            # This is the final merge into "ancestral"
+            ancestral_name = "ancestral"
+        else:
+            # Create intermediate ancestral population
+            ancestral_name = f"p{i}_ancestral_level{level}"
+            next_level_pops.append(ancestral_name)
+            demography.add_population(
+                name=ancestral_name,
+                initial_size=len(derived) * rho
+            )
+
+        # Set initial sizes for derived populations
+        for pop_name in derived:
+            if pop_name in demography:
+                demography[pop_name].initial_size = rho
+
+        # Add the split event
+        split_time = get_next_time(time_offset, level)
+        demography.add_population_split(
+            split_time,
+            derived=derived,
+            ancestral=ancestral_name
+        )
+
+    current_level_pops = next_level_pops
+    level += 1
+    time_offset = get_next_time(time_offset, level)
+
+print(f"Demography setup complete with {level} levels of merging at {datetime.now()}")
+
+#for i in range(L1):
+#    for j in range(L2):
+#        home = i + j * L1 + 1
+#        demography["p"+str(home)].initial_size=rho
+
+       # if i>0:
+        #    demography.set_migration_rate(home, home-1, m/4)
+        #if i<L1-1:
+        #    demography.set_migration_rate(home, home+1, m/4)
+        #if j>0:
+        #    demography.set_migration_rate(home, home-L1, m/4)
+        #if j<L2-1:
+        #    demography.set_migration_rate(home, home+L1, m/4)
+
+#merge all temporary rows of subpopulation into a single population. This has to happen after the temporary merges occur, so we use nextafter again.
+
+#demography.add_population_split(
+#        np.nextafter(np.nextafter(recap_time, 2 * recap_time), 2 * recap_time),
+#        derived=ancestral_names,
+#        ancestral="ancestral")
 
 print(f"start recapitating at {datetime.now()}")
 
@@ -75,7 +147,7 @@ new_ts.dump(f"post_slim_{ts_name}.trees")
 print(f"msprime sim ancestry done. now adding mutations to the new ts at {datetime.now()}")
 new_tables = new_ts.tables
 
-new_nodes = np.where(new_tables.nodes.time == new_time)[0]
+new_nodes = np.where(new_tables.nodes.time == post_sweep_time)[0]
 print(f"There are {len(new_nodes)} nodes from the start of the new simulation. Current time: {datetime.now()}")
 
 slim_nodes = rts.samples(time=0)
@@ -91,8 +163,8 @@ node_map[new_nodes] = np.random.choice(slim_nodes, len(new_nodes), replace=False
 # also, unmark the nodes at the end of the SLiM simulation as samples
 tables = rts.tables
 tables.nodes.flags = tables.nodes.flags & ~np.uint32(tskit.NODE_IS_SAMPLE)
-tables.nodes.time = tables.nodes.time + new_time
-tables.mutations.time = tables.mutations.time + new_time
+tables.nodes.time = tables.nodes.time + post_sweep_time
+tables.mutations.time = tables.mutations.time + post_sweep_time
 
 print(f"merging tables at {datetime.now()}")
 # merge the two sets of tables
