@@ -53,7 +53,7 @@ initialize() {
 		createDirectory(OUTDIR);
 	}
 	defineConstant("STATEOUT", OUTDIR + "/sim_" + params.getValue("seed") + ".state");
-	defineConstant("TREEOUT", OUTDIR + "/fixed_sweep.trees");
+	defineConstant("TREEOUT", OUTDIR + "/" + OUTNAME + ".trees");
 
 }
 1 early() {
