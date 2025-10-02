@@ -22,7 +22,7 @@ r=1e-8
 OUTNAME="r=1e-8"
 
 echo "SLiM sim started at: $(date)"
-slim -d L1=$L1 -d L2=$L2 -d rho=$rho -d m=$m -d s=$s -d r=$r -d OUTNAME=$OUTNAME 2d_spatial_sweep.slim
+slim -d L1=$L1 -d L2=$L2 -d rho=$rho -d m=$m -d s=$s -d r=$r -d OUTNAME=\"$OUTNAME\" 2d_spatial_sweep.slim
 echo "slim sim finished at: $(date)"
 echo "running post-sweep msprime sims for $T_post_sweep generations at: $(date)"
 python -u post_slim_process.py $OUTNAME $T_post_sweep
