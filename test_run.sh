@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --nodes=1
-#SBATCH --time=01-12:00:00
+#SBATCH --time=02-12:00:00
 #SBATCH -o output_%j.out                    
 #SBATCH -e error_%j.err                   
 #SBATCH --job-name=test
-#SBATCH --mem=80G
-#SBATCH --partition=short
+#SBATCH --mem=500G
+#SBATCH --partition=lotterhos
 
 echo "Job started at: $(date)"
 module load anaconda3/2024.06
