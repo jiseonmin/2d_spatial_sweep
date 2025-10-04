@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
 import sys
+import gc
 
 ts_name = str(sys.argv[1])
 post_sweep_time = int(sys.argv[2])
@@ -39,76 +40,70 @@ demography.add_population(
 def get_next_time(current_time, iteration):
     return np.nextafter(current_time, (iteration + 2) * current_time)
 
-# Keep track of all populations at each level
-current_level_pops = [f"p{i+1}" for i in range(total_pops)]
+# Pre-set all initial population sizes (much faster than doing it in the loop)
+print(f"Setting initial population sizes at {datetime.now()}")
+for i in range(total_pops):
+    pop_name = f"p{i+1}"
+    if pop_name in demography:
+        demography[pop_name].initial_size = rho
+
+# Build all demographic events in a batch
+print(f"Building demographic events at {datetime.now()}")
 level = 0
 time_offset = recap_time
+num_current_pops = total_pops
 
-# Merge populations hierarchically until we have one final ancestral population
-while len(current_level_pops) > 1:
-    next_level_pops = []
-    num_groups = (len(current_level_pops) + 98) // 99  # Ceiling division
+# Collect all populations and splits to add at once
+intermediate_pops = []
+all_splits = []
 
-    for i in range(num_groups):
-        # Get up to 99 populations for this group
-        start_idx = i * 99
-        end_idx = min((i + 1) * 99, len(current_level_pops))
-        derived = current_level_pops[start_idx:end_idx]
+while num_current_pops > 1:
+    num_groups = (num_current_pops + 98) // 99
 
-        # Determine ancestral population name
+    for group_idx in range(num_groups):
+        start_idx = group_idx * 99
+        end_idx = min((group_idx + 1) * 99, num_current_pops)
+
+        # Generate names for this group
+        if level == 0:
+            derived = [f"p{i+1}" for i in range(start_idx, end_idx)]
+        else:
+            derived = [f"p{i}_ancestral_level{level-1}" for i in range(start_idx, end_idx)]
+
+        # Determine ancestral name
         if num_groups == 1:
-            # This is the final merge into "ancestral"
             ancestral_name = "ancestral"
         else:
-            # Create intermediate ancestral population
-            ancestral_name = f"p{i}_ancestral_level{level}"
-            next_level_pops.append(ancestral_name)
-            demography.add_population(
-                name=ancestral_name,
-                initial_size=len(derived) * rho
-            )
+            ancestral_name = f"p{group_idx}_ancestral_level{level}"
+            # Store intermediate population info to add later
+            intermediate_pops.append((ancestral_name, len(derived) * rho))
 
-        # Set initial sizes for derived populations
-        for pop_name in derived:
-            if pop_name in demography:
-                demography[pop_name].initial_size = rho
+        # Store split info
+        split_time = get_next_time(time_offset, level * 1000 + group_idx)
+        all_splits.append((split_time, derived, ancestral_name))
 
-        # Add the split event
-        split_time = get_next_time(time_offset, level)
-        demography.add_population_split(
-            split_time,
-            derived=derived,
-            ancestral=ancestral_name
-        )
+        del derived
 
-    current_level_pops = next_level_pops
+    num_current_pops = num_groups
     level += 1
-    time_offset = get_next_time(time_offset, level)
+    time_offset = get_next_time(time_offset, level * 1000)
+
+print(f"Adding {len(intermediate_pops)} intermediate populations at {datetime.now()}")
+# Add all intermediate populations at once
+for pop_name, initial_size in intermediate_pops:
+    demography.add_population(name=pop_name, initial_size=initial_size)
+
+print(f"Adding {len(all_splits)} population splits at {datetime.now()}")
+# Add all splits at once
+for split_time, derived, ancestral in all_splits:
+    demography.add_population_split(split_time, derived=derived, ancestral=ancestral)
+
+# Clean up
+del intermediate_pops, all_splits
+gc.collect()
 
 print(f"Demography setup complete with {level} levels of merging at {datetime.now()}")
 
-#for i in range(L1):
-#    for j in range(L2):
-#        home = i + j * L1 + 1
-#        demography["p"+str(home)].initial_size=rho
-
-       # if i>0:
-        #    demography.set_migration_rate(home, home-1, m/4)
-        #if i<L1-1:
-        #    demography.set_migration_rate(home, home+1, m/4)
-        #if j>0:
-        #    demography.set_migration_rate(home, home-L1, m/4)
-        #if j<L2-1:
-        #    demography.set_migration_rate(home, home+L1, m/4)
-
-#merge all temporary rows of subpopulation into a single population. This has to happen after the temporary merges occur, so we use nextafter again.
-
-#demography.add_population_split(
-#        np.nextafter(np.nextafter(recap_time, 2 * recap_time), 2 * recap_time),
-#        derived=ancestral_names,
-#        ancestral="ancestral")
-
-print(f"start recapitating at {datetime.now()}")
 
 rts = pyslim.recapitate(
         ts, demography=demography,
@@ -116,6 +111,10 @@ rts = pyslim.recapitate(
         random_seed=4
 )
 print(f"recapitation completed. Adding neutral mutations at {datetime.now()}")
+
+# delete ts and demography to save working memory
+del ts, demography
+gc.collect()
 
 # Sprinkle neutral mutations on top of the recapitated tree sequence
 next_id = pyslim.next_slim_mutation_id(rts)
@@ -147,6 +146,9 @@ new_ts.dump(f"post_slim_{ts_name}.trees")
 print(f"msprime sim ancestry done. now adding mutations to the new ts at {datetime.now()}")
 new_tables = new_ts.tables
 
+del new_ts
+gc.collect()
+
 new_nodes = np.where(new_tables.nodes.time == post_sweep_time)[0]
 print(f"There are {len(new_nodes)} nodes from the start of the new simulation. Current time: {datetime.now()}")
 
@@ -162,6 +164,10 @@ node_map[new_nodes] = np.random.choice(slim_nodes, len(new_nodes), replace=False
 # since tree sequences are not mutable, we do this in the tables directly
 # also, unmark the nodes at the end of the SLiM simulation as samples
 tables = rts.tables
+
+del rts
+gc.collect()
+
 tables.nodes.flags = tables.nodes.flags & ~np.uint32(tskit.NODE_IS_SAMPLE)
 tables.nodes.time = tables.nodes.time + post_sweep_time
 tables.mutations.time = tables.mutations.time + post_sweep_time
@@ -176,9 +182,10 @@ tables.union(new_tables, node_map,
 full_ts = tables.tree_sequence()
 full_ts.dump(f"full_{ts_name}.trees")
 
+
 fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-afs = ts.allele_frequency_spectrum(polarised=True, mode='branch')
-ax.loglog(np.arange(1, ts.num_samples+1) / ts.num_samples, afs[1:])
+afs = full_ts.allele_frequency_spectrum(polarised=True, mode='branch')
+ax.loglog(np.arange(1, full_ts.num_samples+1) / full_ts.num_samples, afs[1:])
 ax.set_xlabel("f")
 ax.set_ylabel("n(f)")
 fig.savefig(f"afs_{ts_name}.png")
