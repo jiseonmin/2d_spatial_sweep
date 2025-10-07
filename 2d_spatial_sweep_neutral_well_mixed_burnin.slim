@@ -31,9 +31,12 @@ initialize() {
 		else {
 			params.setValue(k, executeLambda(paste(c(k, ";"), sep='')));
 		}
-	}	
+	}
+	if (!exists("BURNIN")) {
+		defineConstant("BURNIN", L1 * L2 * rho);
+	}
+	params.setValue("BURNIN", BURNIN);	
 	defineConstant("PARAMS", params);
-	defineConstant("BURNIN", L1 * L2 * rho);
 	initializeMutationType("m1", 1.0, "f", s);  // introduced mutation
 	m1.convertToSubstitution = F;
 	initializeGenomicElementType("g1", m1, 1.0);
